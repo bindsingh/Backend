@@ -15,20 +15,15 @@ dashboard_clients: List[WebSocket] = []
 
 @app.websocket("/ws/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
-    """WebSocket endpoint for frontend dashboards"""
     await websocket.accept()
     dashboard_clients.append(websocket)
     
     try:
-        # Send initial state
-        frontend_payload = transform_to_frontend_format(traffic_state)
-        await websocket.send_json(frontend_payload)
-        
         while True:
-            # Send updates every second
+            # Transform backend state to frontend format
             frontend_payload = transform_to_frontend_format(traffic_state)
             await websocket.send_json(frontend_payload)
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)  # ← CHANGED FROM 1 TO 3 SECONDS
             
     except WebSocketDisconnect:
         print("Dashboard client disconnected")
@@ -147,3 +142,4 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
