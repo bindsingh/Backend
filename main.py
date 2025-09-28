@@ -1,33 +1,38 @@
-# in main.py
+import os
+import asyncio
+import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from models import DecisionPayload
-from state_manager import traffic_state # Import the shared state
-from business_logic import apply_ai_decision # You will create this next
+from state_manager import traffic_state
+from business_logic import apply_ai_decision
+
+# Import the AI loop from run_live_agent
+from run_live_agent import run_live_inference
 
 app = FastAPI()
 
+# --- WebSocket endpoint for AI agent to push data ---
 @app.websocket("/ws/ai")
 async def websocket_ai_endpoint(websocket: WebSocket):
     await websocket.accept()
     traffic_state["ai_status"] = "CONNECTED"
     print("✅ AI Agent Connected")
+
     try:
         while True:
             # 1. Receive data from the AI agent
             data = await websocket.receive_json()
 
-            # 2. Validate the data using your Pydantic model
+            # 2. Validate and apply decision
             try:
                 validated_data = DecisionPayload(**data)
-                print(f"Received decision: {validated_data.decision['reason']}")
+                print(f"📊 Received decision: {validated_data.decision['reason']}")
 
-                # 3. Apply the decision using your business logic
-                apply_ai_decision(validated_data)
+                apply_ai_decision(validated_data)  # update shared state
 
             except ValidationError as e:
-                # If data is bad, log it and ignore it
                 print(f"❌ Invalid data received from AI: {e}")
 
     except WebSocketDisconnect:
@@ -35,8 +40,7 @@ async def websocket_ai_endpoint(websocket: WebSocket):
         print("🔴 AI Agent Disconnected")
 
 
-        # in main.py, add these below your websocket endpoint
-
+# --- REST API Endpoints ---
 @app.get("/status")
 async def get_status():
     """Returns the current, live state of the intersection."""
@@ -44,11 +48,27 @@ async def get_status():
 
 @app.get("/metrics")
 async def get_metrics():
-    """Returns simple performance metrics. (This can be expanded later)"""
-    # This is a placeholder for more complex logic you might build.
+    """Returns simple performance metrics. (This can be expanded later)."""
     total_vehicles_waiting = sum(traffic_state["lane_counts"].values())
     return {
         "ai_status": traffic_state["ai_status"],
         "total_vehicles_waiting": total_vehicles_waiting,
-        "last_decision_reason": traffic_state["last_decision_reason"]
+        "last_decision_reason": traffic_state["last_decision_reason"],
     }
+
+
+# --- Background Startup Task: Run AI Agent ---
+@app.on_event("startup")
+async def startup_event():
+    """
+    When FastAPI boots, also start the AI agent loop in the background.
+    This ensures Railway runs both backend and inference together.
+    """
+    print("🚦 Starting AI agent loop...")
+    asyncio.create_task(run_live_inference())
+
+
+# --- Optional root endpoint ---
+@app.get("/")
+async def root():
+    return {"message": "Traffic AI Backend running", "timestamp": int(time.time())}
