@@ -1,4 +1,4 @@
-import os
+'''import os
 import asyncio
 import time
 import threading
@@ -252,8 +252,8 @@ if __name__ == "__main__":
         reload=False,
         access_log=False,  # Reduce logging
         workers=1  # Single worker to save memory
-    )
-'''import os
+    )'''
+import os
 import asyncio
 import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -458,7 +458,8 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting server on port {port}")
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)'''
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
