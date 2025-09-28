@@ -18,11 +18,17 @@ logging.getLogger("ultralytics").setLevel(logging.WARNING)
 IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT"))
 
 # Use internal WebSocket URL for Railway
-if IS_RAILWAY:
+'''if IS_RAILWAY:
     WEBSOCKET_URI = "ws://localhost:8000/ws/ai"
 else:
     WEBSOCKET_URI = "wss://backend-production-039d.up.railway.app/ws/ai"
-
+'''
+# Replace this section in your current run_live_agent.py:
+if IS_RAILWAY:
+    port = os.environ.get("PORT", "8080")  # Use Railway's assigned port
+    WEBSOCKET_URI = f"ws://localhost:{port}/ws/ai"
+else:
+    WEBSOCKET_URI = "wss://backend-production-039d.up.railway.app/ws/ai"
 '''# Fix the WebSocket URI for Railway internal networking
 if IS_RAILWAY:
     WEBSOCKET_URI = "ws://127.0.0.1:8000/ws/ai"  # Try 127.0.0.1 instead of localhost
