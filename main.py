@@ -54,15 +54,24 @@ async def websocket_dashboard(websocket: WebSocket):
     dashboard_clients.append(websocket)
     print("📡 Dashboard client connected")
 
-    # 👇 Send the latest traffic state immediately
-    await websocket.send_json(traffic_state)
+    # Send initial state immediately
+    try:
+        await websocket.send_json(traffic_state)
+    except Exception:
+        print("⚠️ Failed to send initial state")
 
     try:
         while True:
-            await websocket.receive_text()  # keep connection alive
+            # keep the connection alive with a small ping
+            await asyncio.sleep(5)
+            if websocket.application_state != websocket.application_state.CONNECTED:
+                break
     except WebSocketDisconnect:
-        dashboard_clients.remove(websocket)
         print("🔌 Dashboard client disconnected")
+    finally:
+        if websocket in dashboard_clients:
+            dashboard_clients.remove(websocket)
+
 
 
 
@@ -115,6 +124,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # Railway injects PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
