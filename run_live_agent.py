@@ -4,6 +4,193 @@ import time
 import json
 import os
 import sys 
+import asyncio
+import websockets
+import logging
+from ultralytics import YOLO
+
+# Reduce logging spam
+logging.getLogger("ultralytics").setLevel(logging.WARNING)
+
+# =================================================================================
+# === CONFIGURATION (MINIMAL FOR RAILWAY)                                       ===
+# =================================================================================
+IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT"))
+
+# Use internal WebSocket URL for Railway
+if IS_RAILWAY:
+    WEBSOCKET_URI = "ws://localhost:8000/ws/ai"
+else:
+    WEBSOCKET_URI = "wss://backend-production-039d.up.railway.app/ws/ai"
+
+# --- File Paths ---
+BASE_DIR = os.path.dirname(__file__)
+VIDEO_FILE = os.path.join(BASE_DIR, "my_video.mp4")
+
+# --- Simple Lane Configuration ---
+LANE_POLYGONS = {
+    "Northbound": np.array([[2124, 487], [2830, 514], [2103, 1657], [2829, 1592]], np.int32),
+    "Southbound": np.array([[966, 1568], [1380, 1574], [1467, 2048], [830, 2085]], np.int32),
+    "Eastbound": np.array([[100, 100], [200, 100], [200, 200], [100, 200]], np.int32),
+    "Westbound": np.array([[300, 100], [400, 100], [400, 200], [300, 200]], np.int32),
+}
+LANE_NAMES_ORDER = ["Northbound", "Southbound", "Eastbound", "Westbound"]
+
+# --- Minimal Detection Settings ---
+YOLO_MODEL = 'yolov8n.pt'  # Use nano model for speed
+CONF_THRESHOLD = 0.4
+VEHICLE_CLASSES = [2, 3, 5, 7]  # car, motorcycle, bus, truck
+PROCESS_EVERY_N_FRAMES = 5  # Process every 5th frame only
+SEND_DATA_EVERY_N_SECONDS = 5  # Send data every 5 seconds
+
+# =================================================================================
+# === HELPER FUNCTIONS                                                          ===
+# =================================================================================
+async def send_to_backend(data):
+    """Send data to backend via WebSocket with error handling"""
+    try:
+        async with websockets.connect(WEBSOCKET_URI, ping_timeout=10) as websocket:
+            await websocket.send(json.dumps(data))
+            print(f"[SUCCESS] Data sent: {data['signal_state']['active_direction']}")
+    except Exception as e:
+        print(f"[ERROR] Backend connection failed: {e}")
+
+# =================================================================================
+# === MAIN SIMPLIFIED SCRIPT                                                    ===
+# =================================================================================
+async def run_live_inference():
+    """Simplified AI inference with minimal resource usage"""
+    
+    print("[INFO] Loading minimal YOLO model...")
+    try:
+        model = YOLO(YOLO_MODEL)
+        model.overrides['verbose'] = False
+        model.overrides['conf'] = CONF_THRESHOLD
+        model.overrides['device'] = 'cpu'  # Force CPU to save memory
+    except Exception as e:
+        print(f"[ERROR] Failed to load YOLO model: {e}")
+        return
+
+    print("[INFO] Opening video...")
+    cap = cv2.VideoCapture(VIDEO_FILE)
+    if not cap.isOpened():
+        print(f"[ERROR] Could not open video: {VIDEO_FILE}")
+        return
+
+    fps = cap.get(cv2.CAP_PROP_FPS) if cap.get(cv2.CAP_PROP_FPS) > 0 else 30
+
+    # Simple state variables
+    current_lane_index = 0
+    frame_count = 0
+    last_data_send_time = 0
+    
+    # Scale down polygons for processing
+    scaled_lane_polygons = {}
+    
+    print("[INFO] Starting simplified AI agent...")
+    
+    try:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                print("[INFO] Video ended, restarting...")
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                continue
+
+            frame_count += 1
+            
+            # Skip frames for performance
+            if frame_count % PROCESS_EVERY_N_FRAMES != 0:
+                continue
+            
+            current_time = time.time()
+            
+            # Only process and send data every N seconds
+            if current_time - last_data_send_time < SEND_DATA_EVERY_N_SECONDS:
+                continue
+                
+            last_data_send_time = current_time
+
+            try:
+                # Resize frame for faster processing
+                original_height, original_width = frame.shape[:2]
+                processed_frame = cv2.resize(frame, (320, 240))  # Very small for Railway
+                
+                # Scale polygons if not done
+                if not scaled_lane_polygons:
+                    scale_x = 320 / original_width
+                    scale_y = 240 / original_height
+                    
+                    for name, polygon in LANE_POLYGONS.items():
+                        scaled_polygon = polygon.copy().astype(np.float32)
+                        scaled_polygon[:, 0] *= scale_x
+                        scaled_polygon[:, 1] *= scale_y
+                        scaled_lane_polygons[name] = scaled_polygon.astype(np.int32)
+
+                # Run YOLO detection
+                results = model(processed_frame, verbose=False)
+                lane_counts = {name: 0 for name in LANE_NAMES_ORDER}
+                
+                # Count vehicles in lanes
+                if results[0].boxes is not None:
+                    for box in results[0].boxes:
+                        class_id = int(box.cls[0].item())
+                        if class_id in VEHICLE_CLASSES and box.conf[0].item() > CONF_THRESHOLD:
+                            x1, y1, x2, y2 = [int(coord) for coord in box.xyxy[0].tolist()]
+                            center_point = ((x1 + x2) // 2, (y1 + y2) // 2)
+                            
+                            for name, poly in scaled_lane_polygons.items():
+                                if cv2.pointPolygonTest(poly, center_point, False) >= 0:
+                                    lane_counts[name] += 1
+                                    break
+
+                # Simple logic: rotate through lanes
+                if sum(lane_counts.values()) > 0:  # Only change if there are vehicles
+                    max_lane = max(lane_counts, key=lane_counts.get)
+                    current_lane_index = LANE_NAMES_ORDER.index(max_lane)
+
+                # Send data to backend
+                output_data = {
+                    "timestamp": current_time,
+                    "lane_counts": lane_counts,
+                    "pedestrian_count": 0,  # Simplified
+                    "decision": {"reason": f"AI Decision: {LANE_NAMES_ORDER[current_lane_index]} has most traffic"},
+                    "signal_state": {
+                        "active_direction": LANE_NAMES_ORDER[current_lane_index],
+                        "state": "GREEN",
+                        "timer": 10
+                    }
+                }
+                
+                await send_to_backend(output_data)
+                print(f"[INFO] Frame {frame_count}: {sum(lane_counts.values())} vehicles total")
+                
+            except Exception as e:
+                print(f"[ERROR] Processing error: {e}")
+                continue
+
+    except Exception as e:
+        print(f"[FATAL] AI agent crashed: {e}")
+    finally:
+        print("[INFO] Cleaning up AI agent...")
+        cap.release()
+
+# =================================================================================
+# === ENTRY POINT                                                               ===
+# =================================================================================
+if __name__ == '__main__':
+    try:
+        asyncio.run(run_live_inference())
+    except KeyboardInterrupt:
+        print("[INFO] AI agent stopped by user")
+    except Exception as e:
+        print(f"[ERROR] AI agent failed: {e}")
+'''import cv2
+import numpy as np
+import time
+import json
+import os
+import sys 
 from ultralytics import YOLO
 import asyncio
 import websockets
@@ -290,4 +477,4 @@ if __name__ == '__main__':
     except ConnectionRefusedError:
         print(f"[FATAL ERROR] Connection to backend at {WEBSOCKET_URI} was refused.")
     except KeyboardInterrupt:
-        print("\n[INFO] Program interrupted by user.")
+        print("\n[INFO] Program interrupted by user.")'''
