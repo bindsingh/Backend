@@ -18,33 +18,56 @@ app = FastAPI()
 dashboard_clients: List[WebSocket] = []
 
 # --- WebSocket endpoint for AI agent to push data ---
-@app.websocket("/ws/ai")
-async def websocket_ai_endpoint(websocket: WebSocket):
+@app.websocket("/ws/dashboard")
+async def websocket_dashboard(websocket: WebSocket):
     await websocket.accept()
-    traffic_state["ai_status"] = "CONNECTED"
-    print("✅ AI Agent Connected")
-
     try:
         while True:
-            # 1. Receive data from the AI agent
-            data = await websocket.receive_json()
+            # Safely handle current_phase (fallback to 0 if None)
+            phase = traffic_state.get("current_phase")
+            if phase is None:
+                phase = 0
 
-            # 2. Validate and apply decision
-            try:
-                validated_data = DecisionPayload(**data)
-                print(f"📊 Received decision: {validated_data.decision['reason']}")
+            # Safely handle AI status
+            ai_status = traffic_state.get("ai_status", "DISCONNECTED")
 
-                apply_ai_decision(validated_data)  # update shared state
+            # Build frontend payload
+            frontend_payload = {
+                "main_dashboard": {
+                    "signal_state": {
+                        "active_direction": f"lane_{phase+1}",
+                        "state": "GREEN",  # TODO: update with your actual signal logic
+                        "timer": 10        # TODO: replace with actual timer value
+                    },
+                    "vehicle_counters": traffic_state.get("lane_counts", {}),
+                    "total_vehicles": sum(traffic_state.get("lane_counts", {}).values())
+                },
+                "performance_metrics": [
+                    {
+                        "title": "AI Status",
+                        "value": ai_status,
+                        "status": "GOOD" if ai_status == "CONNECTED" else "POOR",
+                        "details": f"Last decision: {traffic_state.get('last_decision_reason', 'N/A')}"
+                    },
+                    {
+                        "title": "Pedestrians",
+                        "value": str(traffic_state.get("pedestrian_count", 0)),
+                        "status": "AVERAGE",
+                        "details": "Number of pedestrians detected"
+                    }
+                ],
+                "emergency_mode": {
+                    "priority_direction": "None",
+                    "delayed_vehicles": 0,
+                    "total_vehicles": sum(traffic_state.get("lane_counts", {}).values())
+                }
+            }
 
-                # --- Broadcast updated state to dashboards ---
-                await broadcast_to_dashboard(traffic_state)
-
-            except ValidationError as e:
-                print(f"❌ Invalid data received from AI: {e}")
+            await websocket.send_json(frontend_payload)
+            await asyncio.sleep(1)
 
     except WebSocketDisconnect:
-        traffic_state["ai_status"] = "DISCONNECTED"
-        print("🔴 AI Agent Disconnected")
+        print("📴 Dashboard client disconnected")
 
 
 # --- WebSocket endpoint for frontend dashboards ---
@@ -163,6 +186,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # Railway injects PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
