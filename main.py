@@ -72,3 +72,12 @@ async def startup_event():
 @app.get("/")
 async def root():
     return {"message": "Traffic AI Backend running", "timestamp": int(time.time())}
+
+
+# --- Proper Railway Entry Point ---
+# Commenting this in ONLY for standalone run (Docker CMD: python main.py)
+# On Railway this ensures the PORT is picked from env correctly.
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
