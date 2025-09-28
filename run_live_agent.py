@@ -44,7 +44,9 @@ YOLO_MODEL = 'yolov8s.pt'; CONF_THRESHOLD = 0.3
 PERSON_CLASS_ID = 0; VEHICLE_CLASSES = [2, 3, 5, 7]
 ALL_DETECTABLE_CLASSES = [PERSON_CLASS_ID] + VEHICLE_CLASSES
 MAX_VEHICLES_PER_LANE = 40
-WEBSOCKET_URI = "ws://localhost:8000/ws/ai"
+#WEBSOCKET_URI = "ws://localhost:8000/ws/ai"
+WEBSOCKET_URI = "wss://backend-production-039d.up.railway.app/ws/ai"
+
 
 # =================================================================================
 # === HELPER FUNCTIONS (UNCHANGED)                                              ===
