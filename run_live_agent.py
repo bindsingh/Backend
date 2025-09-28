@@ -75,8 +75,9 @@ async def send_to_backend(data):
     try:
         async with websockets.connect(WEBSOCKET_URI) as websocket:
             await websocket.send(json.dumps(data))
-    except Exception:
-        print(f"[ERROR] Could not connect to backend.")
+            print(f"[SUCCESS] Data sent to backend")
+    except Exception as e:
+        print(f"[ERROR] Backend connection failed: {e}")
 
 # =================================================================================
 # === MAIN SCRIPT                                                               ===
