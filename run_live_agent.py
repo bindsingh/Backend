@@ -15,8 +15,11 @@ from optimization_engine import OptimizationEngine
 # =================================================================================
 
 # --- File and Model Paths ---
-VIDEO_FILE = "my_video.mp4"
-SAVED_AGENT_MODEL_PATH = "traffic_agent"
+#VIDEO_FILE = "my_video.mp4"
+#SAVED_AGENT_MODEL_PATH = "traffic_agent"
+BASE_DIR = os.path.dirname(__file__)
+VIDEO_FILE = os.path.join(BASE_DIR, "my_video.mp4")
+SAVED_AGENT_MODEL_PATH = os.path.join(BASE_DIR, "traffic_agent")
 
 # --- Lanes, Crosswalks, and Directions ---
 LANE_POLYGONS = {
@@ -46,6 +49,7 @@ ALL_DETECTABLE_CLASSES = [PERSON_CLASS_ID] + VEHICLE_CLASSES
 MAX_VEHICLES_PER_LANE = 40
 #WEBSOCKET_URI = "ws://localhost:8000/ws/ai"
 WEBSOCKET_URI = "wss://backend-production-039d.up.railway.app/ws/ai"
+
 
 
 # =================================================================================
