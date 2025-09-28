@@ -106,9 +106,9 @@ async def run_live_inference():
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-        print("[WARN] Video ended, restarting...")
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        continue
+            print("[WARN] Video ended, restarting...")
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
 
         frame_count += 1
         if frame_count % 100 == 0:
