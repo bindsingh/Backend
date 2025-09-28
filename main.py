@@ -48,11 +48,50 @@ async def websocket_ai_endpoint(websocket: WebSocket):
 
 
 # --- WebSocket endpoint for frontend dashboards ---
+
 @app.websocket("/ws/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
     await websocket.accept()
-    dashboard_clients.append(websocket)
-    print("📡 Dashboard client connected")
+    try:
+        while True:
+            # Map backend state -> frontend schema
+            frontend_payload = {
+                "main_dashboard": {
+                    "signal_state": {
+                        "active_direction": f"lane_{traffic_state['current_phase']+1}",  # map phase to lane
+                        "state": "GREEN",  # or compute based on your logic
+                        "timer": 10  # replace with your signal timer if you track one
+                    },
+                    "vehicle_counters": traffic_state["lane_counts"],
+                    "total_vehicles": sum(traffic_state["lane_counts"].values())
+                },
+                "performance_metrics": [
+                    {
+                        "title": "AI Status",
+                        "value": traffic_state["ai_status"],
+                        "status": "GOOD" if traffic_state["ai_status"] == "CONNECTED" else "POOR",
+                        "details": f"Last decision: {traffic_state['last_decision_reason']}"
+                    },
+                    {
+                        "title": "Pedestrians",
+                        "value": str(traffic_state["pedestrian_count"]),
+                        "status": "AVERAGE",
+                        "details": "Number of pedestrians detected"
+                    }
+                ],
+                "emergency_mode": {
+                    "priority_direction": "None",
+                    "delayed_vehicles": 0,
+                    "total_vehicles": sum(traffic_state["lane_counts"].values())
+                }
+            }
+
+            await websocket.send_json(frontend_payload)
+            await asyncio.sleep(1)
+
+    except WebSocketDisconnect:
+        print("Dashboard client disconnected")
+
 
     # Send initial state immediately
     try:
@@ -124,6 +163,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # Railway injects PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
