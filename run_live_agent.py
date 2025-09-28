@@ -104,7 +104,14 @@ async def run_live_inference():
                     if cv2.pointPolygonTest(poly, center_point, False) >= 0:
                         lane_counts[name] += 1; cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2); break
         
-        key = cv2.waitKey(1) & 0xFF
+        if os.environ.get("RAILWAY_ENVIRONMENT"):  
+    # Skip display in Railway
+    key = -1
+else:
+    key = cv2.waitKey(1) & 0xFF
+    cv2.imshow('AI Traffic System - Final Demo', display_frame)
+
+       # key = cv2.waitKey(1) & 0xFF
         manual_emergency_lane = -1
         if key == ord('1'): manual_emergency_lane = 0
         elif key == ord('2'): manual_emergency_lane = 1
@@ -195,7 +202,7 @@ async def run_live_inference():
         # <<< END OF ADDED CODE >>>
 
         # Display the RESIZED frame
-        cv2.imshow('AI Traffic System - Final Demo', display_frame)
+       # cv2.imshow('AI Traffic System - Final Demo', display_frame)
 
     print("[INFO] Cleaning up...")
     cap.release(); cv2.destroyAllWindows()
