@@ -83,10 +83,20 @@ async def send_to_backend(data):
 # === MAIN SCRIPT                                                               ===
 # =================================================================================
 async def run_live_inference():
+    print("[INFO] Initializing Q-Learning agent...")
     agent = AdaptiveQLearningAgent(action_size=4)
     agent.load_model(SAVED_AGENT_MODEL_PATH)
+    
+    print("[INFO] Initializing optimization engine...")
     engine = OptimizationEngine(starvation_threshold=STARVATION_THRESHOLD)
+    
+    print("[INFO] Loading YOLO model...")
     model = YOLO(YOLO_MODEL)
+    
+    # Set YOLO optimizations AFTER model is loaded
+    model.overrides['verbose'] = False
+    model.overrides['conf'] = CONF_THRESHOLD
+    model.overrides['half'] = True
 
     cap = cv2.VideoCapture(VIDEO_FILE)
     if not cap.isOpened():
@@ -94,16 +104,21 @@ async def run_live_inference():
 
     fps = cap.get(cv2.CAP_PROP_FPS) if cap.get(cv2.CAP_PROP_FPS) > 0 else 30
 
+    # Initialize state variables
     signal_state = "GREEN"
     current_green_lane_index = 0
     state_timer = 0.0
     emergency_override_state = None
     lane_to_clear_index = -1
     emergency_target_lane = -1
+    frame_count = 0
 
+    # Scale polygons for processing at startup
+    scaled_lane_polygons = {}
+    scaled_crosswalk_polygons = {}
+    
     print("\n[INFO] LIVE MODE started...")
-    frame_count = 0  # put this before the loop
-
+    
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -112,17 +127,43 @@ async def run_live_inference():
             continue
 
         frame_count += 1
+        
+        # OPTIMIZATION 1: Skip frames for performance
+        if frame_count % 3 != 0:
+            continue
+        
         if frame_count % 100 == 0:
             print(f"[DEBUG] Processed {frame_count} frames from {VIDEO_FILE}")
 
-        # 👇 correctly indented inside while loop
         print(f"[INFO] Processing frame at {cap.get(cv2.CAP_PROP_POS_MSEC)/1000:.2f} seconds")
 
-        results = model(frame, verbose=False)
+        # OPTIMIZATION 2: Scale frame for processing
+        original_height, original_width = frame.shape[:2]
+        processed_frame = cv2.resize(frame, (640, 480))
+        
+        # Scale polygons if not already done
+        if not scaled_lane_polygons:
+            scale_x = 640 / original_width
+            scale_y = 480 / original_height
+            
+            for name, polygon in LANE_POLYGONS.items():
+                scaled_polygon = polygon.copy().astype(np.float32)
+                scaled_polygon[:, 0] *= scale_x
+                scaled_polygon[:, 1] *= scale_y
+                scaled_lane_polygons[name] = scaled_polygon.astype(np.int32)
+            
+            for name, polygon in CROSSWALK_POLYGONS.items():
+                scaled_polygon = polygon.copy().astype(np.float32)
+                scaled_polygon[:, 0] *= scale_x
+                scaled_polygon[:, 1] *= scale_y
+                scaled_crosswalk_polygons[name] = scaled_polygon.astype(np.int32)
+
+        # Use processed frame for YOLO
+        results = model(processed_frame, verbose=False)
         lane_counts = {name: 0 for name in LANE_NAMES_ORDER}
         pedestrian_count = 0
 
-        # --- Object detection ---
+        # Object detection with scaled coordinates
         for box in results[0].boxes:
             class_id = int(box.cls[0].item())
             if class_id not in ALL_DETECTABLE_CLASSES or box.conf[0].item() < CONF_THRESHOLD:
@@ -131,12 +172,12 @@ async def run_live_inference():
             center_point = ((x1 + x2) // 2, (y1 + y2) // 2)
 
             if class_id == PERSON_CLASS_ID:
-                for poly in CROSSWALK_POLYGONS.values():
+                for poly in scaled_crosswalk_polygons.values():
                     if cv2.pointPolygonTest(poly, center_point, False) >= 0:
                         pedestrian_count += 1
                         break
             else:
-                for name, poly in LANE_POLYGONS.items():
+                for name, poly in scaled_lane_polygons.items():
                     if cv2.pointPolygonTest(poly, center_point, False) >= 0:
                         lane_counts[name] += 1
                         break
