@@ -114,13 +114,12 @@ async def run_live_inference():
         if frame_count % 100 == 0:
             print(f"[DEBUG] Processed {frame_count} frames from {VIDEO_FILE}")
 
-    # 👇 this must be indented properly
+        # 👇 correctly indented inside while loop
         print(f"[INFO] Processing frame at {cap.get(cv2.CAP_PROP_POS_MSEC)/1000:.2f} seconds")
 
-    results = model(frame, verbose=False)
-    lane_counts = {name: 0 for name in LANE_NAMES_ORDER}
-    pedestrian_count = 0
-
+        results = model(frame, verbose=False)
+        lane_counts = {name: 0 for name in LANE_NAMES_ORDER}
+        pedestrian_count = 0
 
         # --- Object detection ---
         for box in results[0].boxes:
