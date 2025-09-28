@@ -62,12 +62,13 @@ async def websocket_dashboard(websocket: WebSocket):
 
 
 async def broadcast_to_dashboard(data):
-    """Send latest traffic_state to all connected dashboard clients."""
+    print(f"📤 Broadcasting to {len(dashboard_clients)} clients")
     for ws in dashboard_clients[:]:
         try:
             await ws.send_json(data)
         except Exception:
             dashboard_clients.remove(ws)
+
 
 
 # --- REST API Endpoints ---
@@ -109,6 +110,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # Railway injects PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
