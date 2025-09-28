@@ -183,8 +183,12 @@ async def get_debug_info():
         "time_since_update": time.time() - traffic_state.get("last_update_time", 0)
     }
 
-# Remove the startup event that causes circular import
-# The AI agent should be started separately
+@app.on_event("startup")
+async def startup_event():
+    print("Starting AI agent in background...")
+    # Import here to avoid circular import
+    from run_live_agent import run_live_inference
+    asyncio.create_task(run_live_inference())
 
 @app.get("/")
 async def root():
@@ -200,3 +204,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting server on port {port}")
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
