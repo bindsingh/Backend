@@ -101,21 +101,21 @@ async def run_live_inference():
     emergency_target_lane = -1
 
     print("\n[INFO] LIVE MODE started...")
-   frame_count = 0  # put this before the loop
+    frame_count = 0  # put this before the loop
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
         print("[WARN] Video ended, restarting...")
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         continue
 
-    frame_count += 1
-    if frame_count % 100 == 0:
-        print(f"[DEBUG] Processed {frame_count} frames from {VIDEO_FILE}")
+        frame_count += 1
+        if frame_count % 100 == 0:
+            print(f"[DEBUG] Processed {frame_count} frames from {VIDEO_FILE}")
 
     # 👇 this must be indented properly
-    print(f"[INFO] Processing frame at {cap.get(cv2.CAP_PROP_POS_MSEC)/1000:.2f} seconds")
+        print(f"[INFO] Processing frame at {cap.get(cv2.CAP_PROP_POS_MSEC)/1000:.2f} seconds")
 
     results = model(frame, verbose=False)
     lane_counts = {name: 0 for name in LANE_NAMES_ORDER}
