@@ -89,9 +89,14 @@ async def get_metrics():
 
 # --- Background Startup Task: Run AI Agent ---
 @app.on_event("startup")
+@app.on_event("startup")
 async def startup_event():
-    print("🚦 Starting AI agent loop...")
-    asyncio.create_task(run_live_inference())
+    if not os.environ.get("RAILWAY_ENVIRONMENT"):
+        print("🚦 Starting AI agent loop locally...")
+        asyncio.create_task(run_live_inference())
+    else:
+        print("⚠️ Skipping run_live_inference on Railway (headless mode)")
+
 
 
 
@@ -106,6 +111,7 @@ async def root():
  #   import uvicorn
   #  port = int(os.environ.get("PORT", 8000))
    # uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
