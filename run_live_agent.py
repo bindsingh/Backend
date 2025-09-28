@@ -13,6 +13,7 @@ from optimization_engine import OptimizationEngine
 # =================================================================================
 # === CONFIGURATION                                                             ===
 # =================================================================================
+IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT"))
 
 # --- File and Model Paths ---
 BASE_DIR = os.path.dirname(__file__)
@@ -49,7 +50,6 @@ MAX_VEHICLES_PER_LANE = 40
 # Railway backend WebSocket
 WEBSOCKET_URI = "wss://backend-production-039d.up.railway.app/ws/ai"
 
-
 # =================================================================================
 # === HELPER FUNCTIONS                                                          ===
 # =================================================================================
@@ -65,7 +65,6 @@ async def send_to_backend(data):
             await websocket.send(json.dumps(data))
     except Exception:
         print(f"[ERROR] Could not connect to backend.")
-
 
 # =================================================================================
 # === MAIN SCRIPT                                                               ===
@@ -97,7 +96,8 @@ async def run_live_inference():
         pedestrian_count = 0
         for box in results[0].boxes:
             class_id = int(box.cls[0].item())
-            if class_id not in ALL_DETECTABLE_CLASSES or box.conf[0].item() < CONF_THRESHOLD: continue
+            if class_id not in ALL_DETECTABLE_CLASSES or box.conf[0].item() < CONF_THRESHOLD: 
+                continue
             x1, y1, x2, y2 = [int(coord) for coord in box.xyxy[0].tolist()]
             center_point = ((x1 + x2) // 2, (y1 + y2) // 2)
             if class_id == PERSON_CLASS_ID:
@@ -111,9 +111,9 @@ async def run_live_inference():
                         lane_counts[name] += 1
                         break
         
-        # Skip GUI in Railway (headless)
-        if os.environ.get("RAILWAY_ENVIRONMENT"):
-            key = -1
+        # --- GUI handling ---
+        if IS_RAILWAY:
+            key = -1   # no GUI possible
         else:
             display_frame = cv2.resize(frame, (1280, 720))
             cv2.imshow('AI Traffic System - Final Demo', display_frame)
@@ -129,8 +129,8 @@ async def run_live_inference():
         state_timer += 1/fps
         decision_reason, send_update_to_backend = "Observing", False
 
-        # --- Emergency & Normal logic (unchanged from your version) ---
-        # [ ... same decision-making logic as your code ... ]
+        # --- Emergency & Normal logic (keep your original) ---
+        # TODO: paste back the same decision-making code you had
 
         if send_update_to_backend:
             output_data = {
@@ -148,8 +148,8 @@ async def run_live_inference():
 
     print("[INFO] Cleaning up...")
     cap.release()
-    cv2.destroyAllWindows()
-
+    if not IS_RAILWAY:
+        cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     try:
