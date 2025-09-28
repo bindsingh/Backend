@@ -54,13 +54,12 @@ async def websocket_dashboard(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            # Map backend state -> frontend schema
             frontend_payload = {
                 "main_dashboard": {
                     "signal_state": {
-                        "active_direction": f"lane_{traffic_state['current_phase']+1}",  # map phase to lane
-                        "state": "GREEN",  # or compute based on your logic
-                        "timer": 10  # replace with your signal timer if you track one
+                        "active_direction": f"lane_{traffic_state['current_phase']+1}",
+                        "state": "GREEN",  # TODO: replace with actual light state
+                        "timer": 10        # TODO: replace with your real timer
                     },
                     "vehicle_counters": traffic_state["lane_counts"],
                     "total_vehicles": sum(traffic_state["lane_counts"].values())
@@ -91,6 +90,7 @@ async def websocket_dashboard(websocket: WebSocket):
 
     except WebSocketDisconnect:
         print("Dashboard client disconnected")
+
 
 
     # Send initial state immediately
@@ -163,6 +163,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # Railway injects PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
 
 
 
